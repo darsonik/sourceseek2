@@ -9,3 +9,5 @@ pdfplumber
 pandas
 python-docx
 openpyxl
+python-dotenv
+psycopg2
