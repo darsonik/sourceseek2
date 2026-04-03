@@ -1,0 +1,2 @@
+#  * **Purpose:** Document ingestion and chunking.
+#  * **Used for:** Receiving an uploaded file, identifying its type, and using libraries like `pdfplumber`, `python-docx`, or `pandas` to read it. It breaks the text into logical chunks and attaches precision metadata (page number, exact line number, or excel cell number) to each chunk.
