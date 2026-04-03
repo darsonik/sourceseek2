@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+supabase
+pydantic
+pydantic-settings
+python-multipart
+# Add document parsing libs below when needed
+pdfplumber
+pandas
+python-docx
+openpyxl
