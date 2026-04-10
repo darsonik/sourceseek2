@@ -1,9 +1,17 @@
+import base64
+import mimetypes
+import os
+
 import pdfplumber
 import docx
 import openpyxl
+from fireworks import Fireworks
 from openpyxl.utils import get_column_letter
+from PIL import Image
 from pydantic import BaseModel, Field
 from typing import List, Any
+
+from app.core.config import settings
 
 
 class ParsedChunkPDF(BaseModel):
@@ -40,6 +48,16 @@ class ParsedChunkXLSX(BaseModel):
     location_metadata: dict = Field(
         default_factory=dict,
         description="e.g. {'sheet': 'Sheet1', 'row': 4, 'cells': [{'ref': 'A4', 'column': 'Name', 'value': 'ID1234'}]}"
+    )
+
+class ParsedTextFromImages(BaseModel):
+    """
+    Texts after doing OCR on the images using a Vision AI model.
+    """
+    content: str
+    location_metadata: dict = Field(
+        default_factory=dict,
+        description="Which picture contains this text, e.g. {'image_name': 'image1.png'}"
     )
 
 
@@ -282,4 +300,98 @@ def parse_xlsx(file_path: str, has_header_row: bool = True) -> List[ParsedChunkX
             )
 
     workbook.close()
+    return chunks
+
+def parse_image(file_path: str) -> List[ParsedTextFromImages]:
+    """
+    Extracts text from an image file using a Fireworks AI vision model.
+
+    The vision model is prompted to perform OCR-style extraction and return
+    the text line by line. Each line is returned as a separate ParsedTextFromImages
+    chunk so the search index can pinpoint the exact line number within the image.
+
+    Supported formats: JPEG, PNG, GIF, WEBP (anything Pillow can open).
+
+    Args:
+        file_path: The path to the image file to be parsed.
+
+    Returns:
+        A list of ParsedTextFromImages objects, one per non-empty line of
+        text detected in the image.
+
+    Raises:
+        FileNotFoundError: If the given file path does not exist.
+        ValueError: If the file MIME type cannot be determined.
+        Exception: If the Fireworks API call fails.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Image not found: {file_path}")
+
+    # --- Determine MIME type so the base64 data URL is correct ---
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type or not mime_type.startswith("image/"):
+        raise ValueError(f"Cannot determine image MIME type for: {file_path}")
+
+    # --- Get basic image metadata (dimensions) via Pillow ---
+    with Image.open(file_path) as img:
+        width, height = img.size
+        image_format = img.format or "UNKNOWN"  # e.g. 'JPEG', 'PNG'
+
+    # --- Encode the image to base64 for the API payload ---
+    with open(file_path, "rb") as image_file:
+        image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
+
+    # --- Call the Fireworks vision model ---
+    client = Fireworks(api_key=settings.VISION_MODEL_API_KEY)
+
+    response = client.chat.completions.create(
+        model=settings.VISION_MODEL_NAME,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "You are an OCR assistant. Extract ALL text visible in this image. "
+                            "Return each line of text on its own separate line, preserving the "
+                            "original reading order (top to bottom, left to right). "
+                            "Do NOT add any commentary, headings, or formatting - only the raw extracted text lines."
+                        ),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{image_base64}"
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+
+    raw_text: str = response.choices[0].message.content or ""
+
+    # --- Split the response into individual lines and build chunks ---
+    image_name = os.path.basename(file_path)
+    chunks: List[ParsedTextFromImages] = []
+
+    for line_number, line in enumerate(raw_text.splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue  # skip blank lines
+
+        chunks.append(
+            ParsedTextFromImages(
+                content=line,
+                location_metadata={
+                    "image_name": image_name,
+                    "image_path": file_path,
+                    "line": line_number,
+                    "image_format": image_format,
+                    "image_dimensions": {"width": width, "height": height},
+                },
+            )
+        )
+
     return chunks

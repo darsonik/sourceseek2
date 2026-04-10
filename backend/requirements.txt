@@ -11,3 +11,4 @@ python-docx
 openpyxl
 python-dotenv
 psycopg2
+fireworks-ai
