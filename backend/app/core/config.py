@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     VISION_MODEL_NAME : str
     VISION_MODEL_API_KEY : str
+    EMBEDDING_MODEL_NAME : str
+    EMBEDDING_MODEL_API_KEY : str
 
     model_config = SettingsConfigDict(
         env_file=".env", 

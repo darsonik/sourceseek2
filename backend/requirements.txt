@@ -10,5 +10,6 @@ pandas
 python-docx
 openpyxl
 python-dotenv
-psycopg2
+# psycopg2
+psycopg2-binary
 fireworks-ai
