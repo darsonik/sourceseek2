@@ -60,18 +60,17 @@ def insert_chunks(conn, document_id: uuid.UUID, chunks: list[dict[str, Any]]) ->
         return 0
 
     with conn.cursor() as cur:
-        # executemany is simple and clear for moderate chunk counts.
-        # For very large files (thousands of chunks) switch to execute_values.
         cur.executemany(
             """
-            INSERT INTO document_chunks (document_id, content, location_metadata)
-            VALUES (%s, %s, %s::jsonb);
+            INSERT INTO document_chunks (document_id, content, location_metadata, embedding)
+            VALUES (%s, %s, %s::jsonb, %s::vector);
             """,
             [
                 (
                     str(document_id),
                     chunk["content"],
                     json.dumps(chunk["location_metadata"]),
+                    str(chunk.get("embedding")) if chunk.get("embedding") else None,
                 )
                 for chunk in chunks
             ],
