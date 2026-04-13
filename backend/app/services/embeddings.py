@@ -11,7 +11,7 @@ def get_embedding(text: str) -> list:
     Returns:
         list: The embedding vector for the input text.
     """
-    url = "https://api.fireworks.ai/inference/v1/embeddings"
+    url = settings.EMBEDDING_MODEL_URL
 
     headers = {
         "Authorization": f"Bearer {settings.EMBEDDING_MODEL_API_KEY}",
@@ -19,7 +19,7 @@ def get_embedding(text: str) -> list:
     }
     payload = {
         "input": text,
-        "model": settings.EMBEDDING_MODEL_NAME,
+        "model": settings.EMBEDDING_MODEL_URL,
     }
 
     response = requests.post(url, json=payload, headers=headers)

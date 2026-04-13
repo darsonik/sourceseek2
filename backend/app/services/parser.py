@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from typing import List, Any
 
 from app.core.config import settings
+from app.services.embeddings import get_embedding
 
 
 class ParsedChunkPDF(BaseModel):
@@ -20,6 +21,7 @@ class ParsedChunkPDF(BaseModel):
     its exact location metadata that will be stored in the database.
     """
     content: str
+    embedding: List[float]
     location_metadata: dict = Field(
         default_factory=dict,
         description="Exact location of this chunk, e.g. {'page': 3, 'line': 12, 'bbox': {...}}"
@@ -31,6 +33,7 @@ class ParsedChunkDOC(BaseModel):
     its exact location metadata that will be stored in the database.
     """
     content: str
+    embedding: List[float]
     location_metadata: dict = Field(
         default_factory=dict,
         description="Exact location of this chunk, e.g. {'paragraph_index': 4, 'style': 'Heading 1'}"
@@ -45,6 +48,7 @@ class ParsedChunkXLSX(BaseModel):
     embeddings, while the metadata pinpoints each individual cell value.
     """
     content: str
+    embedding: List[float]
     location_metadata: dict = Field(
         default_factory=dict,
         description="e.g. {'sheet': 'Sheet1', 'row': 4, 'cells': [{'ref': 'A4', 'column': 'Name', 'value': 'ID1234'}]}"
@@ -55,6 +59,7 @@ class ParsedTextFromImages(BaseModel):
     Texts after doing OCR on the images using a Vision AI model.
     """
     content: str
+    embedding: List[float]
     location_metadata: dict = Field(
         default_factory=dict,
         description="Which picture contains this text, e.g. {'image_name': 'image1.png'}"
@@ -134,6 +139,7 @@ def parse_pdf(file_path: str) -> List[ParsedChunkPDF]:
                 chunks.append(
                     ParsedChunkPDF(
                         content=line_text,
+                        embedding=get_embedding(line_text),
                         location_metadata={
                             "page": page_number,
                             "line": line_number,
@@ -190,6 +196,7 @@ def parse_docx(file_path: str) -> List[ParsedChunkDOC]:
         chunks.append(
             ParsedChunkDOC(
                 content=text,
+                embedding=get_embedding(text),
                 location_metadata={
                     "paragraph_index": paragraph_index,
                     "style": style_name,
@@ -291,6 +298,7 @@ def parse_xlsx(file_path: str, has_header_row: bool = True) -> List[ParsedChunkX
             chunks.append(
                 ParsedChunkXLSX(
                     content=content,
+                    embedding=get_embedding(content),
                     location_metadata={
                         "sheet": sheet_name,
                         "row": row_number,
@@ -384,6 +392,7 @@ def parse_image(file_path: str) -> List[ParsedTextFromImages]:
         chunks.append(
             ParsedTextFromImages(
                 content=line,
+                embedding=get_embedding(line),
                 location_metadata={
                     "image_name": image_name,
                     "image_path": file_path,
