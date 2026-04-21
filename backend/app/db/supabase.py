@@ -76,3 +76,61 @@ def insert_chunks(conn, document_id: uuid.UUID, chunks: list[dict[str, Any]]) ->
             ],
         )
     return len(chunks)
+
+
+def search_keyword(conn, keyword: str, limit: int = 5) -> list[dict[str, Any]]:
+    """
+    Searches the database for the exact keyword using the FTS and Trigram indexes.
+    """
+    with conn.cursor() as cur:
+        # We will use ILIKE '%keyword%' to leverage the pg_trgm index
+        cur.execute(
+            """
+            SELECT d.filename, d.file_type, c.content, c.location_metadata
+            FROM document_chunks c
+            JOIN documents d ON c.document_id = d.id
+            WHERE c.content ILIKE %s
+            LIMIT %s;
+            """,
+            (f"%{keyword}%", limit)
+        )
+        rows = cur.fetchall()
+    
+    return [
+        {
+            "filename": row[0],
+            "file_type": row[1],
+            "content": row[2],
+            "location_metadata": row[3]
+        }
+        for row in rows
+    ]
+
+
+def search_semantic(conn, embedding: list[float], limit: int = 5) -> list[dict[str, Any]]:
+    """
+    Searches the database semantically using the provided embedding vector and the HNSW index.
+    """
+    with conn.cursor() as cur:
+        # We use <=> which calculates cosine distance for pgvector
+        cur.execute(
+            """
+            SELECT d.filename, d.file_type, c.content, c.location_metadata
+            FROM document_chunks c
+            JOIN documents d ON c.document_id = d.id
+            ORDER BY c.embedding <=> %s::vector
+            LIMIT %s;
+            """,
+            (str(embedding), limit)
+        )
+        rows = cur.fetchall()
+        
+    return [
+        {
+            "filename": row[0],
+            "file_type": row[1],
+            "content": row[2],
+            "location_metadata": row[3]
+        }
+        for row in rows
+    ]
