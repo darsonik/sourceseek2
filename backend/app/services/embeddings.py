@@ -7,6 +7,9 @@ from app.core.config import settings
 _BATCH_SIZE = 256
 
 
+
+
+
 def get_embeddings(texts: list[str]) -> list[list[float]]:
     """
     Generate embedding vectors for a list of texts in batches.
