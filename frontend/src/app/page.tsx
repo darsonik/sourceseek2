@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Message = {
   role: "user" | "assistant";
@@ -148,7 +149,7 @@ export default function Home() {
       <main className="main-chat">
         <header className="chat-header glass-panel">
           <Sparkles color="var(--primary)" />
-          <h3>Knowledge Assistant</h3>
+          <h3>Deep Insights</h3>
         </header>
 
         <div className="chat-window glass-panel">
@@ -166,7 +167,7 @@ export default function Home() {
                     {msg.role === "user" ? <User size={20} /> : <Bot size={20} />}
                   </div>
                   <div className={`message-bubble ${msg.role}`}>
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   </div>
                 </div>
               ))}

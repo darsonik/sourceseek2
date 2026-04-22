@@ -89,6 +89,8 @@ def run_search_agent(query: str, thread_id: str) -> str:
         "(for IDs, names, exact phrases) or a semantic match (for conceptual questions). "
         "Use the provided tools to search. "
         "Once you have the search results, synthesize a highly accurate answer for the user. "
+        "If the search results contain numerical data or spreadsheet column data (e.g., 'Col F: 4', 'Quantity: 10'), "
+        "ALWAYS format that data as a clear, easy-to-read Markdown table instead of a vertical list. "
         "ALWAYS include citations in your answer, referring to the Filename and the exact location metadata "
         "(e.g., 'according to document.pdf on page 4, line 12...')."
     )
