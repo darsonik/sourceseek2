@@ -66,9 +66,19 @@ workflow.add_conditional_edges(
     {"tools": "tools", END: END}
 )
 workflow.add_edge("tools", "agent")
+# Lazy initialization for the checkpointer to avoid module-import thread deadlocks on Windows
+# while still preserving connection pooling for fast subsequent requests.
+_pool = None
+_checkpointer = None
 
-# We will compile the workflow dynamically per request inside the function
-# so we don't hold a global database connection pool open.
+def get_checkpointer():
+    global _pool, _checkpointer
+    if _checkpointer is None:
+        _pool = ConnectionPool(conninfo=settings.DATABASE_URL)
+        _checkpointer = PostgresSaver(_pool)
+        _checkpointer.setup()
+    return _checkpointer
+
 def run_search_agent(query: str, thread_id: str) -> str:
     """
     Helper function to invoke the compiled agent with a user query.
@@ -83,25 +93,24 @@ def run_search_agent(query: str, thread_id: str) -> str:
         "(e.g., 'according to document.pdf on page 4, line 12...')."
     )
     
-    with PostgresSaver.from_conn_string(settings.DATABASE_URL) as checkpointer:
-        checkpointer.setup()
-        search_app = workflow.compile(checkpointer=checkpointer)
-        
-        # Check if this thread already has messages to determine if we need the system prompt
-        state = search_app.get_state({"configurable": {"thread_id": thread_id}})
-        
-        inputs = {
-            "messages": [
-                {"role": "user", "content": query}
-            ]
-        }
-        
-        # If no existing messages, inject system prompt first
-        if not state.values.get("messages"):
-            inputs["messages"].insert(0, {"role": "system", "content": system_prompt})
-        
-        # Run the graph and get the final state
-        final_state = search_app.invoke(inputs, {"configurable": {"thread_id": thread_id}})
-        
-        # Return the content of the very last message (the LLM's final synthesized response)
-        return final_state["messages"][-1].content
+    checkpointer = get_checkpointer()
+    search_app = workflow.compile(checkpointer=checkpointer)
+    
+    # Check if this thread already has messages to determine if we need the system prompt
+    state = search_app.get_state({"configurable": {"thread_id": thread_id}})
+    
+    inputs = {
+        "messages": [
+            {"role": "user", "content": query}
+        ]
+    }
+    
+    # If no existing messages, inject system prompt first
+    if not state.values.get("messages"):
+        inputs["messages"].insert(0, {"role": "system", "content": system_prompt})
+    
+    # Run the graph and get the final state. Add recursion limit to prevent infinite loops.
+    final_state = search_app.invoke(inputs, {"configurable": {"thread_id": thread_id}, "recursion_limit": 5})
+    
+    # Return the content of the very last message (the LLM's final synthesized response)
+    return final_state["messages"][-1].content

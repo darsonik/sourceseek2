@@ -12,7 +12,7 @@ class SearchResponse(BaseModel):
     answer: str
 
 @router.post("/", response_model=SearchResponse)
-async def perform_search(request: SearchRequest):
+def perform_search(request: SearchRequest):
     """
     Takes a natural language or keyword query, triggers the LangGraph agent,
     and returns a synthesized answer with citations to the documents.
