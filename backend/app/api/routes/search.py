@@ -6,6 +6,7 @@ router = APIRouter(prefix="/search", tags=["Search"])
 
 class SearchRequest(BaseModel):
     query: str
+    thread_id: str
 
 class SearchResponse(BaseModel):
     answer: str
@@ -17,7 +18,7 @@ async def perform_search(request: SearchRequest):
     and returns a synthesized answer with citations to the documents.
     """
     try:
-        answer = run_search_agent(request.query)
+        answer = run_search_agent(request.query, request.thread_id)
         return SearchResponse(answer=answer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

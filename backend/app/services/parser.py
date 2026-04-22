@@ -5,7 +5,7 @@ import os
 import pdfplumber
 import docx
 import openpyxl
-from fireworks import Fireworks
+from openai import OpenAI
 from openpyxl.utils import get_column_letter
 from PIL import Image
 from pydantic import BaseModel, Field
@@ -278,7 +278,7 @@ def parse_image(file_path: str) -> List[ParsedTextFromImages]:
     with open(file_path, "rb") as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
 
-    client = Fireworks(api_key=settings.VISION_MODEL_API_KEY)
+    client = OpenAI(base_url=settings.VISION_MODEL_URL, api_key=settings.VISION_MODEL_API_KEY)
     response = client.chat.completions.create(
         model=settings.VISION_MODEL_NAME,
         messages=[

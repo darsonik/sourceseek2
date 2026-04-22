@@ -59,6 +59,9 @@ def insert_chunks(conn, document_id: uuid.UUID, chunks: list[dict[str, Any]]) ->
     if not chunks:
         return 0
 
+    if chunks and chunks[0].get("embedding"):
+        print(f"DEBUG: insert_chunks received vectors of dimension {len(chunks[0]['embedding'])}")
+
     with conn.cursor() as cur:
         cur.executemany(
             """
@@ -111,6 +114,7 @@ def search_semantic(conn, embedding: list[float], limit: int = 5) -> list[dict[s
     """
     Searches the database semantically using the provided embedding vector and the HNSW index.
     """
+    print(f"DEBUG: search_semantic received vector of dimension {len(embedding)}")
     with conn.cursor() as cur:
         # We use <=> which calculates cosine distance for pgvector
         cur.execute(

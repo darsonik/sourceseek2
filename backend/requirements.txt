@@ -12,4 +12,9 @@ openpyxl
 python-dotenv
 # psycopg2
 psycopg2-binary
-fireworks-ai
+openai
+langchain
+langgraph
+langchain-openai
+langgraph-checkpoint-postgres
+psycopg-pool

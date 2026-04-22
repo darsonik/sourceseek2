@@ -4,7 +4,9 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMe
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_fireworks import ChatFireworks
+from langchain_openai import ChatOpenAI
+from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres import PostgresSaver
 
 from app.core.config import settings
 from app.agents.tools import keyword_search_tool, semantic_search_tool
@@ -19,9 +21,10 @@ class AgentState(TypedDict):
 
 tools = [keyword_search_tool, semantic_search_tool]
 
-# Initialize the Fireworks LLM
-llm = ChatFireworks(
+# Initialize the OpenAI-compatible LLM
+llm = ChatOpenAI(
     model=settings.VISION_MODEL_NAME, # We reuse the model name from config for the agent
+    base_url=settings.VISION_MODEL_URL,
     api_key=settings.VISION_MODEL_API_KEY
 )
 llm_with_tools = llm.bind_tools(tools)
@@ -64,9 +67,9 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("tools", "agent")
 
-search_app = workflow.compile()
-
-def run_search_agent(query: str) -> str:
+# We will compile the workflow dynamically per request inside the function
+# so we don't hold a global database connection pool open.
+def run_search_agent(query: str, thread_id: str) -> str:
     """
     Helper function to invoke the compiled agent with a user query.
     """
@@ -80,15 +83,25 @@ def run_search_agent(query: str) -> str:
         "(e.g., 'according to document.pdf on page 4, line 12...')."
     )
     
-    inputs = {
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query}
-        ]
-    }
-    
-    # Run the graph and get the final state
-    final_state = search_app.invoke(inputs)
-    
-    # Return the content of the very last message (the LLM's final synthesized response)
-    return final_state["messages"][-1].content
+    with PostgresSaver.from_conn_string(settings.DATABASE_URL) as checkpointer:
+        checkpointer.setup()
+        search_app = workflow.compile(checkpointer=checkpointer)
+        
+        # Check if this thread already has messages to determine if we need the system prompt
+        state = search_app.get_state({"configurable": {"thread_id": thread_id}})
+        
+        inputs = {
+            "messages": [
+                {"role": "user", "content": query}
+            ]
+        }
+        
+        # If no existing messages, inject system prompt first
+        if not state.values.get("messages"):
+            inputs["messages"].insert(0, {"role": "system", "content": system_prompt})
+        
+        # Run the graph and get the final state
+        final_state = search_app.invoke(inputs, {"configurable": {"thread_id": thread_id}})
+        
+        # Return the content of the very last message (the LLM's final synthesized response)
+        return final_state["messages"][-1].content

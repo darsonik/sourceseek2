@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,6 +31,12 @@ app.include_router(documents.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 
 
+from app.core.config import settings
+
 @app.get("/", tags=["Health"])
 def health_check():
-    return {"status": "ok", "message": "SourceSeek API is running."}
+    return {"status": "ok", "message": "SourceSeek API is running.", "model": settings.EMBEDDING_MODEL_NAME}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="localhost", port=8000, reload=True)
