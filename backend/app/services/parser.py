@@ -193,29 +193,37 @@ def parse_xlsx(file_path: str, has_header_row: bool = True) -> List[ParsedChunkX
         if not rows:
             continue
 
-        start_row_index = 0
+        header_row_index = 0
         if has_header_row:
-            header_row = rows[0]
-            headers = [
-                str(cell.value).strip() if cell.value is not None else get_column_letter(cell.column)
-                for cell in header_row
-            ]
-            start_row_index = 1
+            max_non_empty = 0
+            for i, r in enumerate(rows[:50]):
+                non_empty = sum(1 for c in r if c.value is not None and str(c.value).strip())
+                if non_empty > max_non_empty:
+                    max_non_empty = non_empty
+                    header_row_index = i
+            
+            if max_non_empty > 0:
+                header_row = rows[header_row_index]
+                headers = [
+                    str(cell.value).strip() if cell.value is not None and str(cell.value).strip() else get_column_letter(cell.column)
+                    for cell in header_row
+                ]
 
-        for row in rows[start_row_index:]:
+        for row_idx, row in enumerate(rows):
             row_number: int = row[0].row
 
             cell_details: List[dict[str, Any]] = []
             text_parts: List[str] = []
 
             for cell in row:
-                if cell.value is None:
+                if cell.value is None or str(cell.value).strip() == "":
                     continue
 
                 col_index = cell.column - 1
                 cell_ref = f"{get_column_letter(cell.column)}{row_number}"
 
-                if headers and col_index < len(headers):
+                # Apply header names only for data rows (rows below the header row)
+                if headers and row_idx > header_row_index and col_index < len(headers):
                     column_name = headers[col_index]
                 else:
                     column_name = get_column_letter(cell.column)
