@@ -275,7 +275,7 @@ export default function Home() {
       
       const data = await res.json();
       if (res.ok) {
-        setUploadMessage(`✅ Indexed ${data.chunks_saved} segments from ${data.filename}`);
+        setUploadMessage(`✅ Successfully added ${data.filename} to your knowledge base`);
         setFile(null);
         fetchDocuments(); // refresh sidebar
         setInsights(null); // Clear insights to trigger refetch with new doc
