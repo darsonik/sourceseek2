@@ -1,6 +1,17 @@
-from pydantic import BaseModel
+from datetime import datetime
 from typing import List
+
 import uuid
+from pydantic import BaseModel
+
+
+class DuplicateCheckResponse(BaseModel):
+    exists: bool
+    filename: str
+    document_id: uuid.UUID | None = None
+    file_type: str | None = None
+    chunk_count: int | None = None
+    created_at: datetime | None = None
 
 
 class UploadResponse(BaseModel):

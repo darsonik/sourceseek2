@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import documents, search
+from app.api.routes import documents, search, auth, insights, history
 
 app = FastAPI(
     title="SourceSeek API",
@@ -27,8 +27,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
+app.include_router(insights.router, prefix="/api/v1")
+app.include_router(history.router, prefix="/api/v1")
 
 
 from app.core.config import settings

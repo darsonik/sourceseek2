@@ -11,9 +11,18 @@ $func$
 SELECT public.unaccent('public.unaccent', $1)
 $func$  LANGUAGE sql IMMUTABLE;
 
--- 2. Create the main 'documents' table to track files uploaded
+-- 2. Create the 'users' table to handle authentication
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Create the main 'documents' table to track files uploaded
 CREATE TABLE documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   filename TEXT NOT NULL,
   file_type TEXT NOT NULL,          -- e.g., 'pdf', 'docx', 'xlsx'
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -47,3 +56,22 @@ USING GIN (fts);
 CREATE INDEX document_chunks_trgm_idx 
 ON document_chunks 
 USING GIN (immutable_unaccent(content) gin_trgm_ops);
+
+-- 7. User Insights cache for the homepage dashboard
+CREATE TABLE user_insights (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  insights_data JSONB NOT NULL,
+  suggestions_data JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 8. Chat Threads for keeping history of stateful search sessions
+CREATE TABLE chat_threads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  thread_id TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  associated_filename TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);

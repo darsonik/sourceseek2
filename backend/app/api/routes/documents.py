@@ -4,10 +4,20 @@ import tempfile
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status, Depends, BackgroundTasks
+import uuid
 
-from app.db.supabase import get_db_connection, insert_chunks, insert_document
-from app.models.document import UploadResponse
+from app.api.routes.insights import generate_insights_task
+from app.core.security import get_current_user
+from app.db.supabase import (
+    delete_document,
+    find_document_by_filename,
+    get_db_connection,
+    insert_chunks,
+    insert_document,
+    get_user_documents,
+)
+from app.models.document import DuplicateCheckResponse, UploadResponse
 from app.services.parser import (
     parse_docx,
     parse_image,
@@ -58,6 +68,41 @@ def _run_parser(file_type: str, tmp_path: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# GET /documents/check?filename=...
+# ---------------------------------------------------------------------------
+@router.get(
+    "/check",
+    response_model=DuplicateCheckResponse,
+    summary="Check if a document has already been processed",
+    description=(
+        "Returns whether a document with the given filename already exists "
+        "in the database, along with metadata about the existing record."
+    ),
+)
+def check_duplicate(
+    filename: str = Query(..., description="The filename to check for duplicates"),
+    user_id: str = Depends(get_current_user),
+):
+    conn = get_db_connection()
+    try:
+        existing = find_document_by_filename(conn, user_id, filename)
+    finally:
+        conn.close()
+
+    if existing is None:
+        return DuplicateCheckResponse(exists=False, filename=filename)
+
+    return DuplicateCheckResponse(
+        exists=True,
+        filename=filename,
+        document_id=existing["id"],
+        file_type=existing["file_type"],
+        chunk_count=existing["chunk_count"],
+        created_at=existing["created_at"],
+    )
+
+
+# ---------------------------------------------------------------------------
 # POST /documents/upload
 # ---------------------------------------------------------------------------
 @router.post(
@@ -73,7 +118,16 @@ def _run_parser(file_type: str, tmp_path: str) -> list[dict]:
     ),
 )
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: Annotated[UploadFile, File(description="PDF, DOCX, XLSX, or image file")],
+    force_reprocess: bool = Query(
+        False,
+        description=(
+            "If true and the file already exists, the previous data is deleted "
+            "and the file is re-processed from scratch."
+        ),
+    ),
+    user_id: str = Depends(get_current_user),
 ):
     # --- Validate MIME type ------------------------------------------------
     content_type = file.content_type or ""
@@ -87,6 +141,33 @@ async def upload_document(
                 f"Accepted types: PDF, DOCX, XLSX, JPEG, PNG, WEBP, GIF, TIFF."
             ),
         )
+
+    # --- Check for duplicate (unless force_reprocess is requested) ---------
+    conn = get_db_connection()
+    try:
+        existing = find_document_by_filename(conn, user_id, file.filename or "unknown")
+
+        if existing and not force_reprocess:
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": (
+                        f"'{file.filename}' has already been processed "
+                        f"({existing['chunk_count']} segments indexed). "
+                        "You can query it now, or re-upload with reprocess enabled."
+                    ),
+                    "document_id": str(existing["id"]),
+                    "chunk_count": existing["chunk_count"],
+                },
+            )
+
+        # If force_reprocess, delete old data first
+        if existing and force_reprocess:
+            delete_document(conn, existing["id"], user_id)
+            conn.commit()
+    finally:
+        conn.close()
 
     # --- Save upload to a temp file so parsers can open it by path ----------
     suffix = Path(file.filename or "upload").suffix or f".{file_type}"
@@ -107,7 +188,7 @@ async def upload_document(
         # --- Persist to Supabase -------------------------------------------
         conn = get_db_connection()
         try:
-            document_id = insert_document(conn, file.filename or "unknown", file_type)
+            document_id = insert_document(conn, user_id, file.filename or "unknown", file_type)
             chunks_saved = insert_chunks(conn, document_id, chunks)
             conn.commit()
         except Exception as db_err:
@@ -123,6 +204,9 @@ async def upload_document(
         # Always delete the temp file even if parsing or DB fails
         os.unlink(tmp_path)
 
+    # Trigger background task to regenerate insights
+    background_tasks.add_task(generate_insights_task, user_id)
+
     return UploadResponse(
         document_id=document_id,
         filename=file.filename or "unknown",
@@ -130,3 +214,45 @@ async def upload_document(
         chunks_saved=chunks_saved,
         message=f"Successfully indexed {chunks_saved} chunks from '{file.filename}'.",
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /documents
+# ---------------------------------------------------------------------------
+@router.get(
+    "",
+    summary="Get user's documents",
+    description="Returns a list of all documents uploaded by the authenticated user.",
+)
+def list_documents(user_id: str = Depends(get_current_user)):
+    conn = get_db_connection()
+    try:
+        docs = get_user_documents(conn, user_id)
+        return docs
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# DELETE /documents/{document_id}
+# ---------------------------------------------------------------------------
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a document",
+    description="Deletes a document and its parsed chunks if it belongs to the authenticated user.",
+)
+def remove_document(document_id: uuid.UUID, user_id: str = Depends(get_current_user)):
+    conn = get_db_connection()
+    try:
+        success = delete_document(conn, document_id, user_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Document not found or unauthorized")
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Database error")
+    finally:
+        conn.close()
