@@ -45,7 +45,7 @@ export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
 
   const threadId = useRef(Math.random().toString(36).substring(2, 15));
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("sourceseek_token");
@@ -89,7 +89,12 @@ export default function Home() {
   }, [token]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTo({
+        top: chatWindowRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
   }, [messages, isSearching]);
 
   useEffect(() => {
@@ -415,9 +420,30 @@ export default function Home() {
     <div className="app-container">
       {/* LEFT SIDEBAR - Document Ingestion */}
       <aside className="sidebar glass-panel">
-        <div className="sidebar-header">
-          <Database size={32} color="var(--primary)" />
-          <h2>SourceSeek</h2>
+        <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.5rem 0' }}>
+          <div style={{ 
+            background: 'var(--primary)', 
+            padding: '8px', 
+            borderRadius: '10px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            boxShadow: '0 4px 15px var(--primary-glow)' 
+          }}>
+            <Database size={20} color="white" />
+          </div>
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: '1.5rem', 
+            fontWeight: 800, 
+            letterSpacing: '-0.5px',
+            fontFamily: 'Manrope, sans-serif',
+            background: 'linear-gradient(135deg, var(--text-main), var(--primary))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            SourceSeek
+          </h2>
         </div>
         
         <div className="user-profile">
@@ -498,9 +524,32 @@ export default function Home() {
       {/* MAIN CONTENT - Chat Interface */}
       <main className="main-chat">
         <header className="chat-header glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Sparkles color="var(--primary)" />
-            <h3 style={{ margin: 0 }}>{currentContextFile ? `Chat: ${currentContextFile}` : 'Deep Insights'}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ 
+              background: 'var(--bg-color)', 
+              padding: '6px', 
+              borderRadius: '8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--border)'
+            }}>
+              <Sparkles size={16} color="var(--primary)" />
+            </div>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1.1rem', 
+              fontWeight: 700, 
+              letterSpacing: '-0.3px',
+              color: 'var(--text-main)',
+              fontFamily: 'Manrope, sans-serif'
+            }}>
+              {currentContextFile ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Chat /</span> {currentContextFile}
+                </span>
+              ) : 'DeepInsight'}
+            </h3>
             {currentContextFile && (
               <button 
                 onClick={handleNewChat} 
@@ -541,7 +590,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="chat-window glass-panel">
+        <div className="chat-window glass-panel" ref={chatWindowRef}>
           {messages.length === 0 ? (
             <div className="empty-state">
               {userDocs.length === 0 ? (
@@ -628,7 +677,6 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
