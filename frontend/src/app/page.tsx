@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History } from "lucide-react";
+import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -42,6 +42,7 @@ export default function Home() {
   const [currentContextFile, setCurrentContextFile] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   const [historyFilter, setHistoryFilter] = useState<string>("All");
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
 
   const threadId = useRef(Math.random().toString(36).substring(2, 15));
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -53,7 +54,32 @@ export default function Home() {
       setToken(storedToken);
       setUsername(storedUsername);
     }
+    
+    const storedTheme = localStorage.getItem("sourceseek_theme") as "light" | "dark" | "system" | null;
+    if (storedTheme) {
+      setTheme(storedTheme);
+      if (storedTheme !== "system") {
+        document.documentElement.setAttribute("data-theme", storedTheme);
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+      }
+    }
   }, []);
+
+  const toggleTheme = () => {
+    let nextTheme: "light" | "dark" | "system";
+    if (theme === "system") nextTheme = "light";
+    else if (theme === "light") nextTheme = "dark";
+    else nextTheme = "system";
+    
+    setTheme(nextTheme);
+    localStorage.setItem("sourceseek_theme", nextTheme);
+    if (nextTheme !== "system") {
+      document.documentElement.setAttribute("data-theme", nextTheme);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+  };
 
   useEffect(() => {
     if (token) {
@@ -485,6 +511,15 @@ export default function Home() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button 
+              className="btn-secondary" 
+              onClick={toggleTheme}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <Moon size={16} /> : theme === 'light' ? <Sun size={16} /> : <Monitor size={16} />}
+              {theme === 'system' ? 'System' : theme === 'dark' ? 'Dark' : 'Light'}
+            </button>
             {messages.length > 0 && (
               <button 
                 className="btn-secondary" 
@@ -640,7 +675,7 @@ export default function Home() {
                     onChange={e => setHistoryFilter(e.target.value)}
                   >
                     <option value="All">All Documents</option>
-                    {Array.from(new Set(chatHistories.flatMap(h => h.associated_filename ? h.associated_filename.split(',').map((f: string) => f.strip ? f.strip() : f.trim()) : []))).map((filename: any, idx) => (
+                    {Array.from(new Set(chatHistories.flatMap(h => h.associated_filename ? h.associated_filename.split(',').map((f: string) => f.trim()) : []))).map((filename: any, idx) => (
                       <option key={idx} value={filename}>{filename}</option>
                     ))}
                   </select>
@@ -657,11 +692,11 @@ export default function Home() {
                               {history.associated_filename.split(',').map((f: string, i: number) => (
                                 <span key={i} style={{ 
                                   fontSize: '0.65rem', 
-                                  backgroundColor: 'rgba(0,0,0,0.05)', 
+                                  backgroundColor: 'var(--bg-secondary)', 
                                   color: 'var(--text-muted)', 
                                   padding: '0.1rem 0.4rem', 
                                   borderRadius: '4px',
-                                  border: '1px solid rgba(0,0,0,0.05)',
+                                  border: '1px solid var(--border)',
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -698,7 +733,7 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 0.75rem;
-          background: rgba(0,0,0,0.03);
+          background: var(--bg-secondary);
           border-radius: 8px;
           margin-bottom: 0.5rem;
         }
@@ -710,32 +745,33 @@ export default function Home() {
         .user-documents h3 { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1rem; }
         .empty-docs { font-size: 0.85rem; color: var(--text-muted); font-style: italic; }
         .doc-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-radius: 6px; background: rgba(0,0,0,0.02); transition: all 0.2s; }
-        .doc-item:hover { background: rgba(0,0,0,0.04); }
+        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-radius: 6px; background: var(--bg-secondary); transition: all 0.2s; }
+        .doc-item:hover { background: var(--border); }
         .doc-info { display: flex; align-items: center; gap: 0.5rem; overflow: hidden; }
         .doc-name { font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
         .doc-action-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 0.25rem; border-radius: 4px; display: flex; opacity: 0.5; transition: all 0.2s; }
         .doc-item:hover .doc-action-btn { opacity: 1; }
-        .doc-action-btn:hover { color: var(--primary); background: rgba(0,0,0,0.05); }
+        .doc-action-btn:hover { color: var(--primary); background: var(--primary-glow); }
         .doc-action-btn.delete:hover { color: var(--danger); background: rgba(196, 91, 91, 0.1); }
-        .doc-item.active { background: rgba(217, 119, 87, 0.1); border-left: 2px solid var(--primary); }
+        .doc-item.active { background: var(--primary-glow); border-left: 2px solid var(--primary); }
         .right-sidebar { width: 300px; flex-shrink: 0; }
         .history-list .doc-info { align-items: flex-start; margin-top: 0.2rem; }
         
         .insights-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--text-muted); padding: 3rem 0; width: 100%; height: 100%; }
         .insights-container { width: 100%; max-width: 800px; text-align: left; padding: 2rem; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; height: 100%; }
         .insights-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
-        .insights-header h2 { margin: 0; font-size: 1.5rem; color: var(--text-color); }
+        .insights-header h2 { margin: 0; font-size: 1.5rem; color: var(--text-main); }
         .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 2rem; width: 100%; }
-        .insight-card { padding: 1.25rem; border-radius: 8px; background: rgba(0,0,0, 0.03); border: 1px solid rgba(0,0,0, 0.1); display: flex; flex-direction: column; justify-content: space-between; }
-        .insight-card p { margin: 0; font-size: 0.95rem; line-height: 1.5; color: var(--text-color); margin-bottom: 0.75rem; }
-        .insight-source { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--text-muted); padding-top: 0.5rem; border-top: 1px solid rgba(0,0,0,0.05); font-style: italic; }
+        .insight-card { padding: 1.25rem; border-radius: 12px; background: var(--bg-secondary); backdrop-filter: blur(12px); border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+        .insight-card:hover { transform: translateY(-2px); border-color: var(--primary-glow); box-shadow: 0 8px 24px rgba(0,0,0,0.05); }
+        .insight-card p { margin: 0; font-size: 0.95rem; line-height: 1.5; color: var(--text-main); margin-bottom: 0.75rem; }
+        .insight-source { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--text-muted); padding-top: 0.5rem; border-top: 1px solid var(--border); font-style: italic; }
         .suggestions-section { display: flex; flex-direction: column; gap: 1rem; }
         .suggestions-header { display: flex; align-items: center; gap: 0.5rem; }
         .suggestions-header h4 { margin: 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
         .suggestions-chips { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-        .suggestion-chip { background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); padding: 0.75rem 1rem; border-radius: 20px; font-size: 0.9rem; color: var(--text-color); cursor: pointer; transition: all 0.2s; text-align: left; line-height: 1.3; max-width: 100%; }
-        .suggestion-chip:hover { background: rgba(0,0,0, 0.1); border-color: rgba(0,0,0, 0.2); transform: translateY(-1px); }
+        .suggestion-chip { background: var(--bg-secondary); backdrop-filter: blur(8px); border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 20px; font-size: 0.9rem; color: var(--text-main); cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-align: left; line-height: 1.3; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+        .suggestion-chip:hover { background: var(--card-bg); border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
         .suggestion-source { font-size: 0.8rem; color: var(--text-muted); font-style: italic; white-space: nowrap; }
       `}</style>
 
