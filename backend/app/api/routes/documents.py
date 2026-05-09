@@ -242,13 +242,19 @@ def list_documents(user_id: str = Depends(get_current_user)):
     summary="Delete a document",
     description="Deletes a document and its parsed chunks if it belongs to the authenticated user.",
 )
-def remove_document(document_id: uuid.UUID, user_id: str = Depends(get_current_user)):
+def remove_document(
+    document_id: uuid.UUID, 
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user)
+):
     conn = get_db_connection()
     try:
         success = delete_document(conn, document_id, user_id)
         if not success:
             raise HTTPException(status_code=404, detail="Document not found or unauthorized")
         conn.commit()
+        # Regenerate insights after deletion so suggestions don't remain
+        background_tasks.add_task(generate_insights_task, user_id)
     except Exception as e:
         conn.rollback()
         if isinstance(e, HTTPException):
