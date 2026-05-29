@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Required — server will not start without this
     DATABASE_URL: str
+    SECRET_KEY: str
 
     # Optional until you wire up the vision/embedding features.
     # The relevant endpoints will raise a clear error if called without these set.
@@ -12,6 +13,8 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str | None = None
     EMBEDDING_MODEL_URL: str | None = None
     EMBEDDING_MODEL_API_KEY: str | None = None
+    BLACKBLAZE_APPLICATION_KEY: str | None = None
+    BLACKBLAZE_APPLICATION_KEY_ID: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
