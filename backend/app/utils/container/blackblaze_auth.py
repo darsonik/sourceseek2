@@ -7,8 +7,8 @@ info = InMemoryAccountInfo()
 b2_api = B2Api(info)
 
 b2_api.authorize_account(
-    account_id=settings.BLACKBLAZE_ACCOUNT_ID,
-    account_key=settings.BLACKBLAZE_ACCOUNT_KEY
+    application_key_id=settings.BLACKBLAZE_APPLICATION_KEY_ID,
+    application_key=settings.BLACKBLAZE_APPLICATION_KEY
 )
 
 from b2sdk.v2 import ScanPoliciesManager
@@ -29,13 +29,13 @@ policy_manager = ScanPoliciesManager(exclude_all_symlinks=True)
 
 synchronizer = Synchronizer(
     max_workers=10,
-    policy_manager=policy_manager,
+    sync_policy_manager=policy_manager,
     dry_run=False,
     allow_empty_source=True,
     compare_version_mode=CompareVersionMode.MODTIME,
     compare_threshold=3600,
     newer_file_mode=NewerFileSyncMode.REPLACE,
-    keep_or_delete_mode=KeepOrDeleteMode.KEEP_BEFORE_DELETE,
+    keep_days_or_delete=KeepOrDeleteMode.KEEP_BEFORE_DELETE,
     keep_days=7
 )
 
@@ -48,7 +48,7 @@ encryption_settings_provider = BasicSyncEncryptionSettingsProvider(
 with SyncReport(sys.stdout, no_progress=no_progress) as reporter:
     synchronizer.sync_folders(
         source_folder=source_folder,
-        destination_folder=destination_folder,
+        dest_folder=destination_folder,
         encryption_settings_provider=encryption_settings_provider,
         reporter=reporter,
         now_millis=int(round(time.time() * 1000)),

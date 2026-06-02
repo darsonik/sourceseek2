@@ -41,8 +41,13 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
+            print("Token validation failed: user_id (sub) is None")
             raise credentials_exception
-    except jwt.InvalidTokenError:
+    except jwt.ExpiredSignatureError as e:
+        print(f"Token validation failed: Token expired - {e}")
+        raise credentials_exception
+    except jwt.InvalidTokenError as e:
+        print(f"Token validation failed: Invalid token - {e}")
         raise credentials_exception
     
     return user_id

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor } from "lucide-react";
+import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor, DownloadCloud } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -112,6 +112,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setInsights(data);
+      } else if (res.status === 401) {
+        logout();
       }
     } catch (e) {
       console.error("Failed to fetch insights", e);
@@ -128,6 +130,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setChatHistories(data);
+      } else if (res.status === 401) {
+        logout();
       }
     } catch (e) {
       console.error("Failed to fetch histories", e);
@@ -230,6 +234,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setUserDocs(data);
+      } else if (res.status === 401) {
+        logout();
       }
     } catch (e) {
       console.error("Failed to fetch documents", e);
@@ -247,6 +253,29 @@ export default function Home() {
         fetchDocuments();
       } else {
         alert("Failed to delete document.");
+      }
+    } catch (e) {
+      alert("Error connecting to server.");
+    }
+  };
+
+  const downloadDocument = async (id: string, filename: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/documents/${id}/download?filename=${encodeURIComponent(filename)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert("Failed to download document.");
       }
     } catch (e) {
       alert("Error connecting to server.");
@@ -507,6 +536,9 @@ export default function Home() {
                     <span className="doc-name" title={doc.filename}>{doc.filename}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <button className="doc-action-btn" onClick={() => downloadDocument(doc.id, doc.filename)} title="Download file">
+                      <DownloadCloud size={16} />
+                    </button>
                     <button className="doc-action-btn" onClick={() => { handleNewChat(); setCurrentContextFile(doc.filename); }} title="Chat with document">
                       <MessageSquare size={16} />
                     </button>

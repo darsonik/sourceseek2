@@ -147,13 +147,13 @@ def get_user_documents(conn, user_id: str) -> list[dict]:
     ]
 
 
-def delete_document(conn, document_id: uuid.UUID, user_id: str) -> bool:
+def delete_document(conn, document_id: uuid.UUID, user_id: str) -> str | None:
     """
     Deletes a document row (and all its chunks via ON DELETE CASCADE).
     Also deletes any chat threads associated with the document's filename.
 
     Returns:
-        True if a row was deleted, False otherwise.
+        The filename of the deleted document, or None if it was not found.
     """
     with conn.cursor() as cur:
         # First, fetch the filename so we can clean up chat threads
@@ -177,7 +177,7 @@ def delete_document(conn, document_id: uuid.UUID, user_id: str) -> bool:
             "DELETE FROM documents WHERE id = %s AND user_id = %s;",
             (str(document_id), str(user_id)),
         )
-        return cur.rowcount > 0
+        return filename if cur.rowcount > 0 else None
 
 
 def search_keyword(conn, keyword: str, user_id: str, limit: int = 5) -> list[dict[str, Any]]:
