@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_API_KEY: str | None = None
     BLACKBLAZE_APPLICATION_KEY: str | None = None
     BLACKBLAZE_APPLICATION_KEY_ID: str | None = None
-
+    BLACKBLAZE_BUCKET_NAME: str | None = None
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
