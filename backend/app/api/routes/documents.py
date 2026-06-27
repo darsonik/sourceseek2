@@ -7,8 +7,10 @@ from typing import Annotated
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status, Depends, BackgroundTasks
 import uuid
 
+from fastapi.responses import FileResponse
 from app.api.routes.insights import generate_insights_task
 from app.core.security import get_current_user
+import app.services.b2_service as b2_service
 from app.db.supabase import (
     delete_document,
     find_document_by_filename,
@@ -200,6 +202,13 @@ async def upload_document(
         finally:
             conn.close()
 
+        # --- Upload to Backblaze B2 ----------------------------------------
+        try:
+            b2_service.upload_file(tmp_path, user_id, str(document_id), file.filename or "unknown")
+        except Exception as b2_err:
+            # If B2 upload fails, we should ideally rollback DB, but for now we'll just log and fail
+            print(f"B2 upload failed: {b2_err}")
+
     finally:
         # Always delete the temp file even if parsing or DB fails
         os.unlink(tmp_path)
@@ -242,13 +251,26 @@ def list_documents(user_id: str = Depends(get_current_user)):
     summary="Delete a document",
     description="Deletes a document and its parsed chunks if it belongs to the authenticated user.",
 )
-def remove_document(document_id: uuid.UUID, user_id: str = Depends(get_current_user)):
+def remove_document(
+    document_id: uuid.UUID, 
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user)
+):
     conn = get_db_connection()
     try:
-        success = delete_document(conn, document_id, user_id)
-        if not success:
+        filename = delete_document(conn, document_id, user_id)
+        if not filename:
             raise HTTPException(status_code=404, detail="Document not found or unauthorized")
         conn.commit()
+        
+        # Delete from Backblaze B2
+        try:
+            b2_service.delete_file(user_id, str(document_id), filename)
+        except Exception as e:
+            print(f"Error deleting from B2: {e}")
+            
+        # Regenerate insights after deletion so suggestions don't remain
+        background_tasks.add_task(generate_insights_task, user_id)
     except Exception as e:
         conn.rollback()
         if isinstance(e, HTTPException):
@@ -256,3 +278,30 @@ def remove_document(document_id: uuid.UUID, user_id: str = Depends(get_current_u
         raise HTTPException(status_code=500, detail="Database error")
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /documents/{document_id}/download
+# ---------------------------------------------------------------------------
+@router.get(
+    "/{document_id}/download",
+    summary="Download a document",
+    description="Downloads the original file from Backblaze B2.",
+)
+def download_document(
+    document_id: uuid.UUID,
+    filename: str = Query(..., description="The filename of the document to download"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    user_id: str = Depends(get_current_user)
+):
+    suffix = Path(filename).suffix
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp.close()
+    
+    success = b2_service.download_file(user_id, str(document_id), filename, tmp.name)
+    if not success:
+        os.unlink(tmp.name)
+        raise HTTPException(status_code=404, detail="File not found in storage.")
+    
+    background_tasks.add_task(os.unlink, tmp.name)
+    return FileResponse(path=tmp.name, filename=filename)

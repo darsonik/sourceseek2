@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor } from "lucide-react";
+import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor, DownloadCloud } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -45,7 +45,7 @@ export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
 
   const threadId = useRef(Math.random().toString(36).substring(2, 15));
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("sourceseek_token");
@@ -89,7 +89,12 @@ export default function Home() {
   }, [token]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTo({
+        top: chatWindowRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
   }, [messages, isSearching]);
 
   useEffect(() => {
@@ -107,6 +112,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setInsights(data);
+      } else if (res.status === 401) {
+        logout();
       }
     } catch (e) {
       console.error("Failed to fetch insights", e);
@@ -123,6 +130,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setChatHistories(data);
+      } else if (res.status === 401) {
+        logout();
       }
     } catch (e) {
       console.error("Failed to fetch histories", e);
@@ -225,6 +234,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setUserDocs(data);
+      } else if (res.status === 401) {
+        logout();
       }
     } catch (e) {
       console.error("Failed to fetch documents", e);
@@ -242,6 +253,29 @@ export default function Home() {
         fetchDocuments();
       } else {
         alert("Failed to delete document.");
+      }
+    } catch (e) {
+      alert("Error connecting to server.");
+    }
+  };
+
+  const downloadDocument = async (id: string, filename: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/documents/${id}/download?filename=${encodeURIComponent(filename)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert("Failed to download document.");
       }
     } catch (e) {
       alert("Error connecting to server.");
@@ -415,9 +449,30 @@ export default function Home() {
     <div className="app-container">
       {/* LEFT SIDEBAR - Document Ingestion */}
       <aside className="sidebar glass-panel">
-        <div className="sidebar-header">
-          <Database size={32} color="var(--primary)" />
-          <h2>SourceSeek</h2>
+        <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.5rem 0' }}>
+          <div style={{ 
+            background: 'var(--primary)', 
+            padding: '8px', 
+            borderRadius: '10px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            boxShadow: '0 4px 15px var(--primary-glow)' 
+          }}>
+            <Database size={20} color="white" />
+          </div>
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: '1.5rem', 
+            fontWeight: 800, 
+            letterSpacing: '-0.5px',
+            fontFamily: 'Manrope, sans-serif',
+            background: 'linear-gradient(135deg, var(--text-main), var(--primary))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            SourceSeek
+          </h2>
         </div>
         
         <div className="user-profile">
@@ -481,6 +536,9 @@ export default function Home() {
                     <span className="doc-name" title={doc.filename}>{doc.filename}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <button className="doc-action-btn" onClick={() => downloadDocument(doc.id, doc.filename)} title="Download file">
+                      <DownloadCloud size={16} />
+                    </button>
                     <button className="doc-action-btn" onClick={() => { handleNewChat(); setCurrentContextFile(doc.filename); }} title="Chat with document">
                       <MessageSquare size={16} />
                     </button>
@@ -498,9 +556,32 @@ export default function Home() {
       {/* MAIN CONTENT - Chat Interface */}
       <main className="main-chat">
         <header className="chat-header glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Sparkles color="var(--primary)" />
-            <h3 style={{ margin: 0 }}>{currentContextFile ? `Chat: ${currentContextFile}` : 'Deep Insights'}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ 
+              background: 'var(--bg-color)', 
+              padding: '6px', 
+              borderRadius: '8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--border)'
+            }}>
+              <Sparkles size={16} color="var(--primary)" />
+            </div>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1.1rem', 
+              fontWeight: 700, 
+              letterSpacing: '-0.3px',
+              color: 'var(--text-main)',
+              fontFamily: 'Manrope, sans-serif'
+            }}>
+              {currentContextFile ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Chat /</span> {currentContextFile}
+                </span>
+              ) : 'DeepInsight'}
+            </h3>
             {currentContextFile && (
               <button 
                 onClick={handleNewChat} 
@@ -541,7 +622,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="chat-window glass-panel">
+        <div className="chat-window glass-panel" ref={chatWindowRef}>
           {messages.length === 0 ? (
             <div className="empty-state">
               {userDocs.length === 0 ? (
@@ -628,7 +709,6 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>

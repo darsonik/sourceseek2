@@ -158,7 +158,7 @@ def run_search_agent(query: str, thread_id: str, user_id: str, associated_filena
     # Run the graph and get the final state. Add recursion limit to prevent infinite loops.
     final_state = search_app.invoke(
         inputs, 
-        {"configurable": {"thread_id": thread_id, "user_id": user_id}, "recursion_limit": 25}
+        {"configurable": {"thread_id": thread_id, "user_id": user_id}, "recursion_limit": 50}
     )
     
     # Return the content of the very last message (the LLM's final synthesized response)
