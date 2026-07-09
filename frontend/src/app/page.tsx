@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor, DownloadCloud } from "lucide-react";
+import { UploadCloud, Search, FileText, Loader2, Sparkles, Database, Send, User, Bot, Trash2, LogOut, PlusCircle, Lightbulb, MessageCircle, MessageSquare, History, Moon, Sun, Monitor, DownloadCloud, ArrowRight, Shield, Zap, Check, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -20,6 +20,7 @@ export default function Home() {
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // App State
   const [file, setFile] = useState<File | null>(null);
@@ -40,9 +41,18 @@ export default function Home() {
   
   const [chatHistories, setChatHistories] = useState<any[]>([]);
   const [currentContextFile, setCurrentContextFile] = useState<string | null>(null);
+  const [showInsights, setShowInsights] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   const [historyFilter, setHistoryFilter] = useState<string>("All");
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+
+  // Export UI State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "docx">("pdf");
+  const [exportSaveToB2, setExportSaveToB2] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportSuccess, setExportSuccess] = useState("");
 
   const threadId = useRef(Math.random().toString(36).substring(2, 15));
   const chatWindowRef = useRef<HTMLDivElement>(null);
@@ -185,7 +195,57 @@ export default function Home() {
   const handleNewChat = () => {
     setMessages([]);
     setCurrentContextFile(null);
+    setShowInsights(false);
     threadId.current = Math.random().toString(36).substring(2, 15);
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    setExportError("");
+    setExportSuccess("");
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/history/${threadId.current}/export?format=${exportFormat}&save_to_b2=${exportSaveToB2}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        if (exportSaveToB2) {
+          const data = await res.json();
+          setExportSuccess("✅ Chat successfully saved to your documents!");
+          fetchDocuments(); // Refresh documents list
+          setTimeout(() => {
+            setShowExportModal(false);
+            setExportSuccess("");
+          }, 2000);
+        } else {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          const contentDisposition = res.headers.get("content-disposition");
+          let filename = `chat_export.${exportFormat}`;
+          if (contentDisposition) {
+            const matches = /filename="?([^"]+)"?/.exec(contentDisposition);
+            if (matches && matches[1]) {
+              filename = matches[1];
+            }
+          }
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+          setShowExportModal(false);
+        }
+      } else {
+        const errData = await res.json();
+        setExportError(errData.detail || "Failed to export chat.");
+      }
+    } catch (e) {
+      setExportError("Connection error. Is the backend running?");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -388,59 +448,351 @@ export default function Home() {
 
   if (!token) {
     return (
-      <div className="auth-container">
-        <div className="auth-box glass-panel">
-          <div className="auth-header">
-            <Database size={40} color="var(--primary)" />
-            <h2>SourceSeek</h2>
-            <p>Sign in to access your knowledge base</p>
-          </div>
-          
-          <form onSubmit={handleAuth} className="auth-form">
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="Username" 
-              value={authUsername}
-              onChange={(e) => setAuthUsername(e.target.value)}
-              required
-            />
-            <input 
-              type="password" 
-              className="input-field" 
-              placeholder="Password" 
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              required
-            />
-            {authError && <div className="auth-error">{authError}</div>}
-            
-            <button type="submit" className="btn-primary" disabled={isAuthenticating}>
-              {isAuthenticating ? <Loader2 className="spinner" size={18} /> : (authMode === "login" ? "Login" : "Register")}
-            </button>
-          </form>
-
-          <p className="auth-toggle">
-            {authMode === "login" ? "Don't have an account? " : "Already have an account? "}
-            <span onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>
-              {authMode === "login" ? "Register here" : "Login here"}
-            </span>
-          </p>
+      <div className="landing-container">
+        {/* Layered background orbs */}
+        <div className="landing-bg-orbs">
+          <div className="orb orb-1" />
+          <div className="orb orb-2" />
+          <div className="orb orb-3" />
         </div>
-        <style jsx global>{`
-          .auth-container { height: 100vh; display: flex; align-items: center; justify-content: center; background-color: var(--bg-color); }
-          .auth-box { width: 100%; max-width: 400px; padding: 2.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
-          .auth-header { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; }
-          .auth-header h2 { font-size: 1.8rem; }
-          .auth-header p { color: var(--text-muted); font-size: 0.95rem; }
-          .auth-form { display: flex; flex-direction: column; gap: 1rem; }
-          .auth-error { color: var(--danger); font-size: 0.9rem; text-align: center; }
-          .auth-toggle { text-align: center; font-size: 0.9rem; color: var(--text-muted); margin-top: 0.5rem; }
-          .auth-toggle span { color: var(--primary); cursor: pointer; font-weight: 500; }
-          .auth-toggle span:hover { text-decoration: underline; }
-          .spinner { animation: spin 1s linear infinite; }
-          @keyframes spin { 100% { transform: rotate(360deg); } }
-        `}</style>
+        {/* Grid overlay pattern */}
+        <div className="landing-grid-overlay" />
+
+        {/* HEADER / NAVBAR */}
+        <header className="landing-header">
+          <div className="landing-header-inner">
+            <div className="landing-logo">
+              <div className="landing-logo-icon">
+                <Database size={18} color="white" />
+              </div>
+              <span className="landing-logo-text">SourceSeek</span>
+            </div>
+            <div className="landing-nav-actions">
+              <button
+                className="landing-nav-btn"
+                onClick={toggleTheme}
+                title="Toggle Theme"
+              >
+                {theme === 'dark' ? <Moon size={16} /> : theme === 'light' ? <Sun size={16} /> : <Monitor size={16} />}
+              </button>
+              <button
+                className="landing-login-btn"
+                onClick={() => { setAuthMode("login"); setShowAuthModal(true); }}
+              >
+                Log In
+              </button>
+              <button
+                className="landing-signup-btn"
+                onClick={() => { setAuthMode("register"); setShowAuthModal(true); }}
+              >
+                Sign Up Free
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* HERO SECTION */}
+        <section className="landing-hero">
+          <div className="hero-content">
+            <div className="hero-badge">
+              <Sparkles size={14} />
+              <span>AI-Powered Document Intelligence</span>
+            </div>
+            <h1 className="hero-title">
+              Your Documents.<br />
+              <span className="text-gradient-animated">Indexed. Chat Ready.</span>
+            </h1>
+            <p className="hero-subtitle">
+              Upload PDFs, spreadsheets, images, and more. SourceSeek indexes your files, extracts insights, and lets you ask questions in natural language — all in real-time.
+            </p>
+            <div className="hero-cta-group">
+              <button
+                className="hero-cta-primary"
+                onClick={() => { setAuthMode("register"); setShowAuthModal(true); }}
+              >
+                Get Started for Free <ArrowRight size={18} />
+              </button>
+              <button
+                className="hero-cta-secondary"
+                onClick={() => {
+                  document.querySelector('.features-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              >
+                See How It Works
+              </button>
+            </div>
+
+            {/* Hero Stats */}
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <span className="hero-stat-value">5+</span>
+                <span className="hero-stat-label">File Formats</span>
+              </div>
+              <div className="hero-stat">
+                <span className="hero-stat-value">&lt;2s</span>
+                <span className="hero-stat-label">Query Speed</span>
+              </div>
+              <div className="hero-stat">
+                <span className="hero-stat-value">100%</span>
+                <span className="hero-stat-label">Private & Secure</span>
+              </div>
+            </div>
+          </div>
+
+          {/* INTERACTIVE MOCKUP */}
+          <div className="hero-mockup-wrapper">
+            <div className="showcase-mockup">
+              {/* Chrome bar */}
+              <div className="mockup-chrome">
+                <div className="mockup-chrome-dot" style={{ backgroundColor: '#ff5f56' }} />
+                <div className="mockup-chrome-dot" style={{ backgroundColor: '#ffbd2e' }} />
+                <div className="mockup-chrome-dot" style={{ backgroundColor: '#27c93f' }} />
+                <div className="mockup-chrome-url">
+                  <Shield size={10} style={{ marginRight: '4px', opacity: 0.5 }} />
+                  localhost:3000
+                </div>
+              </div>
+              {/* App layout */}
+              <div className="mockup-inner">
+                <div className="mockup-sidebar">
+                  <div className="mockup-sidebar-title">Your Documents</div>
+                  <div className="mockup-doc-item active">
+                    <FileText size={13} />
+                    <span>financial_report.xlsx</span>
+                  </div>
+                  <div className="mockup-doc-item">
+                    <FileText size={13} />
+                    <span>product_roadmap.pdf</span>
+                  </div>
+                  <div className="mockup-doc-item">
+                    <FileText size={13} />
+                    <span>meeting_notes.docx</span>
+                  </div>
+                </div>
+                <div className="mockup-chat">
+                  <div className="mockup-chat-header">
+                    <Sparkles size={14} color="var(--primary)" />
+                    <span>DeepInsight</span>
+                    <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>financial_report.xlsx</span>
+                  </div>
+                  <div className="mockup-messages">
+                    <div className="mockup-msg user">
+                      What were the Q3 financial highlights?
+                    </div>
+                    <div className="mockup-msg assistant">
+                      Based on your financial report, here are the key highlights:<br />
+                      • Revenue grew <strong>12.4%</strong> quarter-over-quarter<br />
+                      • Operational expenses reduced by <strong>4.2%</strong><br />
+                      • Net profit margin reached <strong>18.5%</strong>
+                      <div className="citation">
+                        <FileText size={10} /> financial_report.xlsx — page 4
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mockup-input-area">
+                    <Search size={14} />
+                    Ask a question about your documents...
+                    <Send size={14} className="mockup-send-icon" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* TRUSTED BY */}
+        <section className="trusted-section">
+          <p className="section-label">Trusted by teams at</p>
+          <div className="trusted-logos">
+            <span className="trusted-logo-placeholder">Acme Corp</span>
+            <span className="trusted-logo-placeholder">Globex Inc.</span>
+            <span className="trusted-logo-placeholder">Initech</span>
+            <span className="trusted-logo-placeholder">Umbrella Co.</span>
+            <span className="trusted-logo-placeholder">Stark Labs</span>
+          </div>
+        </section>
+
+        {/* FEATURES GRID SECTION */}
+        <section className="features-section">
+          <div className="section-header">
+            <span className="section-label">Features</span>
+            <h2>Everything You Need, Nothing You Don&apos;t</h2>
+            <p>From ingestion to insights — a complete pipeline for document intelligence.</p>
+          </div>
+          <div className="features-grid">
+            <div className="feature-card glass-panel">
+              <div className="feature-icon-wrapper">
+                <UploadCloud size={24} />
+              </div>
+              <h3>Multi-Format Ingestion</h3>
+              <p>Drop in PDFs, DOCX files, XLSX spreadsheets, and scanned images. Indexed automatically.</p>
+            </div>
+            <div className="feature-card glass-panel">
+              <div className="feature-icon-wrapper">
+                <Search size={24} />
+              </div>
+              <h3>Semantic Search</h3>
+              <p>Vector embeddings find answers by meaning and context, not just keyword matching.</p>
+            </div>
+            <div className="feature-card glass-panel">
+              <div className="feature-icon-wrapper">
+                <Lightbulb size={24} />
+              </div>
+              <h3>Auto Insights</h3>
+              <p>Get summaries, key findings, and follow-up question suggestions from every uploaded document.</p>
+            </div>
+            <div className="feature-card glass-panel">
+              <div className="feature-icon-wrapper">
+                <Shield size={24} />
+              </div>
+              <h3>Private & Secure</h3>
+              <p>Your documents stay in your personal, sandboxed database. No third-party data sharing.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* WORKFLOW STEPS SECTION */}
+        <section className="workflow-section">
+          <div className="section-header">
+            <span className="section-label">How It Works</span>
+            <h2>Three Steps to Your Internal Brain</h2>
+            <p>From raw files to conversational knowledge in minutes.</p>
+          </div>
+          <div className="workflow-grid">
+            <div className="step-card glass-panel">
+              <div className="step-num">01</div>
+              <h3>Upload & Ingest</h3>
+              <p>Drag and drop your documents. Our system parses tables, headers, and visual content.</p>
+            </div>
+            <div className="step-card glass-panel">
+              <div className="step-num">02</div>
+              <h3>Index & Vectorize</h3>
+              <p>Documents are chunked, embedded, and stored in a specialized vector search database.</p>
+            </div>
+            <div className="step-card glass-panel">
+              <div className="step-num">03</div>
+              <h3>Chat & Discover</h3>
+              <p>Ask questions in plain English. Get cited answers, summaries, and cross-document insights.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA BANNER */}
+        <section className="cta-section">
+          <div className="cta-inner">
+            <h2>Ready to Unlock Your Documents?</h2>
+            <p>Start for free. No credit card required. Your data stays private.</p>
+            <button
+              className="cta-btn"
+              onClick={() => { setAuthMode("register"); setShowAuthModal(true); }}
+            >
+              Create Free Account <ArrowRight size={18} />
+            </button>
+          </div>
+        </section>
+
+        {/* FOOTER */}
+        <footer className="landing-footer">
+          <div>© 2026 SourceSeek. All rights reserved.</div>
+          <div className="landing-footer-links">
+            <span>Privacy Policy</span>
+            <span>Terms of Service</span>
+            <span>Support</span>
+          </div>
+        </footer>
+
+        {/* AUTH MODAL OVERLAY */}
+        {showAuthModal && (
+          <div className="auth-modal-overlay" onClick={() => setShowAuthModal(false)}>
+            <div className="auth-modal-card" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close-btn" onClick={() => setShowAuthModal(false)}>
+                <X size={18} />
+              </button>
+
+              {/* Gradient accent bar */}
+              <div className="auth-modal-accent" />
+
+              <div className="auth-modal-body">
+                {/* Logo */}
+                <div className="auth-modal-logo">
+                  <div className="auth-modal-logo-icon">
+                    <Database size={18} color="white" />
+                  </div>
+                  <span className="auth-modal-logo-text">SourceSeek</span>
+                </div>
+
+                {/* Heading */}
+                <div className="auth-modal-heading">
+                  <h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2>
+                  <p>{authMode === "login" ? "Sign in to access your knowledge base" : "Start indexing your documents for free"}</p>
+                </div>
+
+                {/* Tabs */}
+                <div className="auth-tabs">
+                  <button
+                    className={`auth-tab ${authMode === "login" ? "active" : ""}`}
+                    onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                  >
+                    Log In
+                  </button>
+                  <button
+                    className={`auth-tab ${authMode === "register" ? "active" : ""}`}
+                    onClick={() => { setAuthMode("register"); setAuthError(""); }}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleAuth} className="auth-modal-form">
+                  <div className="auth-input-group">
+                    <label className="auth-input-label">Username</label>
+                    <div className="auth-input-wrapper">
+                      <User size={16} className="auth-input-icon" />
+                      <input
+                        type="text"
+                        placeholder="Enter your username"
+                        value={authUsername}
+                        onChange={(e) => setAuthUsername(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="auth-input-group">
+                    <label className="auth-input-label">Password</label>
+                    <div className="auth-input-wrapper">
+                      <Shield size={16} className="auth-input-icon" />
+                      <input
+                        type="password"
+                        placeholder="Enter your password"
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {authError && <div className="auth-error-msg">{authError}</div>}
+
+                  <button type="submit" className="auth-submit-btn" disabled={isAuthenticating}>
+                    {isAuthenticating ? (
+                      <><Loader2 className="spinner" size={18} /> Please wait...</>
+                    ) : (
+                      <>{authMode === "login" ? "Sign In" : "Create Account"} <ArrowRight size={16} /></>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              <div className="auth-modal-footer">
+                {authMode === "login" ? "Don't have an account? " : "Already have an account? "}
+                <span onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>
+                  {authMode === "login" ? "Sign up for free" : "Log in instead"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -636,7 +988,7 @@ export default function Home() {
                   <Loader2 className="spinner" size={24} color="var(--primary)" />
                   <p>Analyzing your documents...</p>
                 </div>
-              ) : insights && (insights.insights.length > 0 || insights.suggestions.length > 0) ? (
+              ) : showInsights && insights && (insights.insights.length > 0 || insights.suggestions.length > 0) ? (
                 <div className="insights-container">
                   <div className="insights-header">
                     <Lightbulb color="var(--primary)" size={24} />
@@ -683,7 +1035,11 @@ export default function Home() {
                 <>
                   <Search size={48} color="var(--text-muted)" style={{ opacity: 0.3 }} />
                   <h2>How can I help you today?</h2>
-                  <p>Ask a question about your uploaded documents.</p>
+                  <p>
+                    {currentContextFile 
+                      ? `Ask a question about ${currentContextFile}` 
+                      : "Ask a question about your uploaded documents."}
+                  </p>
                 </>
               )}
             </div>
@@ -694,8 +1050,44 @@ export default function Home() {
                   <div className="avatar">
                     {msg.role === "user" ? <User size={20} /> : <Bot size={20} />}
                   </div>
-                  <div className={`message-bubble ${msg.role}`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxWidth: msg.role === 'assistant' ? '85%' : '75%' }}>
+                    <div className={`message-bubble ${msg.role}`}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                    {msg.role === 'assistant' && (
+                      <button
+                        onClick={() => {
+                          setShowExportModal(true);
+                          setExportError("");
+                          setExportSuccess("");
+                        }}
+                        style={{
+                          alignSelf: 'flex-start',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '0.25rem 0.6rem',
+                          fontSize: '0.75rem',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--primary)';
+                          (e.currentTarget as HTMLButtonElement).style.color = 'var(--primary)';
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                          (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                        }}
+                        title="Export this conversation"
+                      >
+                        <DownloadCloud size={12} /> Export chat
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -885,6 +1277,84 @@ export default function Home() {
               >
                 Reprocess File
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <h3 style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <DownloadCloud color="var(--primary)" size={20} /> Export Conversation
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Format selection */}
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
+                  Choose Format
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button 
+                    type="button" 
+                    className={`btn-secondary ${exportFormat === 'pdf' ? 'active' : ''}`}
+                    onClick={() => setExportFormat('pdf')}
+                    style={{ flex: 1, padding: '0.6rem', border: exportFormat === 'pdf' ? '1px solid var(--primary)' : '1px solid var(--border)', background: exportFormat === 'pdf' ? 'var(--primary-glow)' : 'transparent' }}
+                  >
+                    PDF Document
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`btn-secondary ${exportFormat === 'docx' ? 'active' : ''}`}
+                    onClick={() => setExportFormat('docx')}
+                    style={{ flex: 1, padding: '0.6rem', border: exportFormat === 'docx' ? '1px solid var(--primary)' : '1px solid var(--border)', background: exportFormat === 'docx' ? 'var(--primary-glow)' : 'transparent' }}
+                  >
+                    Word (DOCX)
+                  </button>
+                </div>
+              </div>
+
+              {/* Save to B2 Cloud Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Save to Cloud</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Store in Backblaze B2</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={exportSaveToB2} 
+                  onChange={(e) => setExportSaveToB2(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+              </div>
+
+              {exportError && <div style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{exportError}</div>}
+              {exportSuccess && <div style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: 500 }}>{exportSuccess}</div>}
+
+              {/* Action buttons */}
+              <div className="modal-actions" style={{ marginTop: '0.5rem' }}>
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setShowExportModal(false)}
+                  disabled={isExporting}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn-primary" 
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}
+                >
+                  {isExporting ? (
+                    <><Loader2 className="spinner" size={16} /> Exporting...</>
+                  ) : (
+                    <>Confirm Export</>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
